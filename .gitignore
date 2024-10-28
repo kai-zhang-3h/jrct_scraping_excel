@@ -1,0 +1,6 @@
+*.json
+*.xlsx
+*.txt
+*.ipynb
+*.csv
+.DS_Store
