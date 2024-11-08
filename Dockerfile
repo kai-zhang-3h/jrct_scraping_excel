@@ -18,5 +18,6 @@ RUN pip install pandas
 RUN pip install beautifulsoup4
 RUN pip install tqdm
 RUN pip install openpyxl
+RUN pip install mysql-connector-python
 
 RUN python -m pip install jupyterlab

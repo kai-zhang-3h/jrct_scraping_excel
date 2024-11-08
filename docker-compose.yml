@@ -1,5 +1,18 @@
 version: '3'
 services:
+  # Mysql サーバを起動するコンテナ
+  mysql:
+    image: mysql
+    volumes:
+      - ./mysql/initdb.d:/docker-entrypoint-initdb.d #初期処理のフォルダ。初回起動のみでおｋ
+      - ./mysql/db:/var/lib/mysql #ここにデータ永続化するためのファイルが入る。
+      - ./mysql/my.cnf:/etc/mysql/conf.d/my.cnf
+
+    container_name: mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=pass
+    ports:
+      - '3306:3306'
   # Selenium サーバを起動するコンテナ
   selenium:
     container_name: selenium-chrome
@@ -18,6 +31,8 @@ services:
     build: .
     container_name: 'python3'
     working_dir: '/root/'
+    env_file:
+      - .env
     tty: true
     volumes:
       - ./:/root/opt
