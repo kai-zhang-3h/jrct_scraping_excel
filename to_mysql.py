@@ -70,19 +70,3 @@ cursor.executemany(query, rows)
 
 connection.commit()
 connection.close()
-
-# cursor = connection.cursor()
-
-# cursor.execute('DROP TABLE IF EXISTS ' + t_name)
-# fields_string = ", ".join(list(map(lambda e: e.split(":")[1] + " TEXT COMMENT \'" + e.split(":")[0] + "\'", fieldnames)))
-# create_query = "CREATE Table " + t_name + "(id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, " + fields_string + ")DEFAULT CHARACTER SET=utf8"
-# cursor.execute(create_query)
-
-# fields_title_string = ", ".join(list(map(lambda e: e.split(":")[1], fieldnames)))
-
-# query = 'INSERT INTO ' + t_name + '(' + fields_title_string + ') VALUES '+ "(" + '%s, ' * (len(fieldnames) - 1) + '%s' + ")"                                                         
-
-# cursor.executemany(query, rows)
-
-# connection.commit()
-# connection.close()
