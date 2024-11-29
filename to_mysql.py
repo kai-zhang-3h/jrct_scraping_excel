@@ -4,6 +4,7 @@ import openpyxl
 
 names_jp = None
 rows = []
+other_hospitals = []
 
 # エクセルファイルの取り込み
 wb = openpyxl.load_workbook("jrct_data_sample.xlsx")
@@ -15,7 +16,23 @@ for row in ws.rows:
         names_jp = list(map(lambda x : x.value, row))
     else:
         # ２行目以降
-        rows.append(list(map(lambda x : x.value, row)))
+        row_raw = list(map(lambda x : x.value, row))
+        rows.append(row_raw)
+
+        # filter cancer records
+        
+        if (row_raw[6] != None and row_raw[6] != ""):
+            jrctid = row_raw[15]
+            hospitals_list = row_raw[6].split('\n')
+            for hospital in hospitals_list:
+                if hospital != '':
+                    table = str.maketrans({
+                                '\u3000': ' ',
+                                })
+                    hospital = hospital.translate(table)
+                    other_hospitals.append([jrctid, hospital])
+
+print(other_hospitals[0:5])
 
 def process_date(date):
 
@@ -120,11 +137,12 @@ def process_rows(old_rows):
 rows = process_rows(rows)
 
 # ['初回公表日', '最終公表日', '実施期間（終了日）', '研究の種別', '治験の区分', 
-#  '責任研究者の組織名', '他施設の責任研究者の組織名', '試験のフェーズ', '対象疾患名', '医薬品の一般名称', 
+#  '責任研究者の組織名', '試験のフェーズ', '対象疾患名', '医薬品の一般名称', 
 #  '販売名', '研究資金等の提供組織名称', '依頼者の名称', '他の臨床研究登録期間発行の研究番号', '試験進捗状況',
 #  'JRCT_ID', '研究名称', '組入れ開始日', '試験概要の目標症例数', '試験概要の試験のタイプ', 
 #  '試験問い合わせ窓口のE-mail', '試験問い合わせ窓口の担当者', 'url', '平易な研究名称']
 
+# '他施設の責任研究者の組織名'は含めていないです
 
 names_en = ['date_public_first', 'date_public_final', 'date_end', 'research_type', 'ct_filter',
            'researcher_org', 'ct_phase', 'disease_name', 'medicine_general_name', 
@@ -148,10 +166,12 @@ for a, b, c in zip (names_jp, names_en, types):
 
 fieldnames = row_new
 
-print(fieldnames)
+# print(fieldnames)
 
 len_rows = len(rows)
 print(f"There are {len_rows} lines to be inserted")
+
+#insert into t_oncolo_jrct
 
 t_name = "t_oncolo_jrct"
 
@@ -171,11 +191,71 @@ cursor.execute(create_query)
 fields_title_string = ", ".join(list(map(lambda e: e.split(":")[1], fieldnames)))
 
 update_string = ", ".join(list(map(lambda e: e + "=ins." + e, names_en)))
-print(update_string)
+# print(update_string)
 
 query = 'INSERT INTO ' + t_name + '(' + fields_title_string + ') VALUES '+ "(" + '%s, ' * (len(fieldnames) - 1) + '%s' + ")" + " AS ins ON DUPLICATE KEY UPDATE " + update_string                                                         
 
 cursor.executemany(query, rows)
+
+connection.commit()
+connection.close()
+
+#insert into jrctid_hospital_mapping
+
+fieldnames_mapping = ["jrctid:jrctid:VARCHAR(255)", "hospital_id:hospital_id:VARCHAR(255)"]
+
+t_name_mapping = "jrctid_hospital_mapping"
+
+connection = mysql.connector.connect(
+    user=os.environ['USER'], password=os.environ['PASS'], 
+    host=os.environ['HOST'], port=os.environ['PORT'], 
+    database=os.environ['DB'])
+print("DB connected")
+
+# Handle unread result error without buffered=True
+cursor = connection.cursor(buffered=True)
+
+cursor.execute('DROP TABLE IF EXISTS ' + t_name_mapping)
+fields_string = ", ".join(list(map(lambda e: e.split(":")[1] + " " + e.split(":")[2] + " COMMENT \'" + e.split(":")[0] + "\'", fieldnames_mapping)))
+create_query = "CREATE TABLE IF NOT EXISTS " + t_name_mapping + "(id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, " + fields_string + ")DEFAULT CHARACTER SET=utf8"
+cursor.execute(create_query)
+
+# find and replace hospital name to id
+
+hospital_ids = []
+ids_not_exist = []
+
+for item in other_hospitals:
+    query = "SELECT id FROM hospitals where %s LIKE CONCAT('%', name, '%')"
+    # print(query)
+    cursor.execute(query, [item[1]])
+    result = cursor.fetchone()
+    if result != None and result != "":
+        hospital_ids.append([item[0], result[0]])
+    else:
+        ids_not_exist.append(item[1])
+
+# print(hospital_ids[0:5])
+print(len(hospital_ids))
+# print(ids_not_exist[0:100])
+print(len(ids_not_exist))
+
+ids_not_exist = sorted(list(set(ids_not_exist)))
+print(len(ids_not_exist))
+
+with open("/root/opt/ids_not_exist.txt", "w") as output:
+    for item in ids_not_exist:
+        output.write("%s\n" % item)
+
+#insert into jrctid_hospital_mapping
+
+fields_title_string = ", ".join(list(map(lambda e: e.split(":")[1], fieldnames_mapping)))
+
+query = 'INSERT INTO ' + t_name_mapping + '(' + fields_title_string + ') VALUES '+ "(" + '%s, ' * (len(fieldnames_mapping) - 1) + '%s' + ")"                                                         
+
+print(query)
+
+cursor.executemany(query, hospital_ids)
 
 connection.commit()
 connection.close()
