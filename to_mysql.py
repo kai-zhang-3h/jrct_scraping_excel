@@ -20,7 +20,9 @@ for row in ws.rows:
         rows.append(row_raw)
 
         # filter cancer records
-        
+
+        if (row_raw[8] == None or ("癌" not in row_raw[8] and "がん" not in row_raw[8])): continue
+
         if (row_raw[6] != None and row_raw[6] != ""):
             jrctid = row_raw[15]
             hospitals_list = row_raw[6].split('\n')
@@ -222,8 +224,8 @@ cursor.execute(create_query)
 
 # find and replace hospital name to id
 
-hospital_ids = []
-ids_not_exist = []
+inserted_hospitals = []
+unknown_hospitals = []
 
 for item in other_hospitals:
     query = "SELECT id FROM hospitals where %s LIKE CONCAT('%', name, '%')"
@@ -231,20 +233,19 @@ for item in other_hospitals:
     cursor.execute(query, [item[1]])
     result = cursor.fetchone()
     if result != None and result != "":
-        hospital_ids.append([item[0], result[0]])
+        inserted_hospitals.append([item[0], result[0]])
     else:
-        ids_not_exist.append(item[1])
+        unknown_hospitals.append(item[1])
 
-# print(hospital_ids[0:5])
-print(len(hospital_ids))
-# print(ids_not_exist[0:100])
-print(len(ids_not_exist))
+print("Length of other_hospitals: ", len(other_hospitals))
 
-ids_not_exist = sorted(list(set(ids_not_exist)))
-print(len(ids_not_exist))
+print("Length of inserted_hospitals: ", len(inserted_hospitals))
 
-with open("/root/opt/ids_not_exist.txt", "w") as output:
-    for item in ids_not_exist:
+unknown_hospitals = sorted(list(set(unknown_hospitals)))
+print("Length of unknown_hospitals: ", len(unknown_hospitals))
+
+with open("/root/opt/unknown_hospitals.txt", "w") as output:
+    for item in unknown_hospitals:
         output.write("%s\n" % item)
 
 #insert into jrctid_hospital_mapping
@@ -255,7 +256,7 @@ query = 'INSERT INTO ' + t_name_mapping + '(' + fields_title_string + ') VALUES 
 
 print(query)
 
-cursor.executemany(query, hospital_ids)
+cursor.executemany(query, inserted_hospitals)
 
 connection.commit()
 connection.close()
