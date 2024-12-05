@@ -2,6 +2,50 @@ import mysql.connector
 import os
 import openpyxl
 
+# ①日付はdate型にする *
+# ②治験名は長い場合があるのでtextに、その他名前とかはｖarchar(255)にする *
+# research_type ③治験のタイプはtiny intにして、１：企業治験、2：医師主導治験にする *
+# ct_filter 1 主たる治験 2 拡大治験 3 主たる治験と拡大治験のいずれにも該当しない *
+# email varchar (255) *
+# num MediumInt *
+# jrct varchar(255) *
+# ct_type 1 介入研究 2 観察研究 *
+# ct progression 試験進捗状況 1募集前　2募集中 3募集中断 4募集終了　5研究終了 *
+# ひとつの治験に対する病院は複数になるので検索を考えて、治験　＞　病院複数でもてるテーブルを別で作る
+
+# https://docs.google.com/spreadsheets/d/1vWqzDrA_jyHXQIi2fQTHK8J6zYC7f8cSCrtBC4Km3OI/edit?usp=sharing
+
+# 病院名は揺らぎがあるので、現在１つになっていると思うが複数（例えば５個ぐらい持てるようにして）
+# スクレイピングで存在しない病院名が発生したら、通知するようにしてその病院名を既存の病院テーブルに追加する。
+# 新しい病院名は当面ＳＱＬで追加するで良いと思います
+
+# エクセル取得は毎日新規でもよい
+# 　インサートとUPDATEはJRCTのIDで判断する必要がある
+
+# 毎回クリアするのではなく、historyは残すように
+
+# ----------------------12/03---------------------------------------
+
+# 肺癌ので検索された場合
+# ①非小細胞肺がん
+# ②小細胞肺がん
+# と種類がある、これは肺癌で検索したときに両方ヒットするような作りが必要
+
+# 対比表は、用意してもらうのでシステム的にはこれを想定しておいてほしい
+
+# https://docs.google.com/spreadsheets/d/1xv7DEpj8qdXaPTv3GuA0Nbr14IRaTYmTbLM3RSkVYtg/edit?gid=742328719#gid=742328719
+
+# ①上記のがん種（疾患名）が対象の治験検索して、今データベースにない病院をリストアップする
+# ②部位もしくは、がん種を指定して検索されるので、その検索クエリを上記表に乗っ取って分ける
+# 基本JRCTのデータは全取り込みでよい
+# 中から上記の疾患が対象の治験を出す
+
+# 疾患名と部位名におけるキーワード情報もできればデータベースに入れた方が良い
+
+# [key1, key2, key3]
+
+# if key1 not in cancer_name and key2 not cancer_name
+
 names_jp = None
 rows = []
 other_hospitals = []
@@ -9,6 +53,22 @@ other_hospitals = []
 # エクセルファイルの取り込み
 wb = openpyxl.load_workbook("jrct_data_sample.xlsx")
 ws = wb["Sheet1"]
+
+with_cancer_list = ["甲状腺", "小細胞肺", "膀胱", "頭頸部", "肺", 
+               "乳", "食道", "胃", "小腸", "大腸", 
+               "肝臓", "胆道", "膵臓", "腎臓", "腎盂", 
+               "尿管", "尿道", "前立腺", "卵巣", "子宮体",
+               "子宮頸", "皮膚", "原発不明"]
+
+cancer_list = ["悪性黒色腫", "脳腫瘍", "中皮腫", "GIST", "メラノーマ", 
+                "神経内分泌腫瘍", "肉腫", "慢性リンパ性白血病", "白血病", "悪性リンパ腫", 
+                "多発性骨髄腫", "骨髄異形成症候群", "骨髄線維症"]
+
+cancer_list += list(map(lambda x : x + "がん", with_cancer_list))
+
+cancer_list += list(map(lambda x : x + "癌", with_cancer_list))
+
+print(cancer_list)
 
 for row in ws.rows:
     if row[0].row == 1:
@@ -21,7 +81,19 @@ for row in ws.rows:
 
         # filter cancer records
 
-        if (row_raw[8] == None or ("癌" not in row_raw[8] and "がん" not in row_raw[8])): continue
+        if (row_raw[8] == None or row_raw[8] == ""): continue
+
+        cancer = row_raw[8]
+
+        flag = False
+
+        for keyword in cancer_list:
+            if keyword in cancer:
+                flag = True
+
+        if not flag: continue
+
+        # if (row_raw[8] == None or ("癌" not in row_raw[8] and "がん" not in row_raw[8])): continue
 
         if (row_raw[6] != None and row_raw[6] != ""):
             jrctid = row_raw[15]
@@ -32,7 +104,7 @@ for row in ws.rows:
                                 '\u3000': ' ',
                                 })
                     hospital = hospital.translate(table)
-                    other_hospitals.append([jrctid, hospital])
+                    other_hospitals.append([jrctid, hospital, cancer])
 
 print(other_hospitals[0:5])
 
@@ -89,28 +161,6 @@ def process_ct_type(ct_type):
     if (ct_type == None or ct_type == ""): return ct_type
     if (ct_type == "介入研究"): return 1
     elif (ct_type == "観察研究"): return 2
-
-# ①日付はdate型にする *
-# ②治験名は長い場合があるのでtextに、その他名前とかはｖarchar(255)にする *
-# research_type ③治験のタイプはtiny intにして、１：企業治験、2：医師主導治験にする *
-# ct_filter 1 主たる治験 2 拡大治験 3 主たる治験と拡大治験のいずれにも該当しない *
-# email varchar (255) *
-# num MediumInt *
-# jrct varchar(255) *
-# ct_type 1 介入研究 2 観察研究 *
-# ct progression 試験進捗状況 1募集前　2募集中 3募集中断 4募集終了　5研究終了 *
-# ひとつの治験に対する病院は複数になるので検索を考えて、治験　＞　病院複数でもてるテーブルを別で作る
-
-# https://docs.google.com/spreadsheets/d/1vWqzDrA_jyHXQIi2fQTHK8J6zYC7f8cSCrtBC4Km3OI/edit?usp=sharing
-
-# 病院名は揺らぎがあるので、現在１つになっていると思うが複数（例えば５個ぐらい持てるようにして）
-# スクレイピングで存在しない病院名が発生したら、通知するようにしてその病院名を既存の病院テーブルに追加する。
-# 新しい病院名は当面ＳＱＬで追加するで良いと思います
-
-# エクセル取得は毎日新規でもよい
-# 　インサートとUPDATEはJRCTのIDで判断する必要がある
-
-# 毎回クリアするのではなく、historyは残すように
 
 def process_rows(old_rows):
     new_rows = []
@@ -204,7 +254,7 @@ connection.close()
 
 #insert into jrctid_hospital_mapping
 
-fieldnames_mapping = ["jrctid:jrctid:VARCHAR(255)", "hospital_id:hospital_id:VARCHAR(255)"]
+fieldnames_mapping = ["jrctid:jrctid:VARCHAR(255)", "hospital_id:hospital_id:VARCHAR(255)", "がん種:cancer:VARCHAR(255)"]
 
 t_name_mapping = "jrctid_hospital_mapping"
 
@@ -233,7 +283,7 @@ for item in other_hospitals:
     cursor.execute(query, [item[1]])
     result = cursor.fetchone()
     if result != None and result != "":
-        inserted_hospitals.append([item[0], result[0]])
+        inserted_hospitals.append([item[0], result[0], item[2]])
     else:
         unknown_hospitals.append(item[1])
 
