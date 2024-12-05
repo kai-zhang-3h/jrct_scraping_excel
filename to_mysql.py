@@ -218,8 +218,6 @@ for a, b, c in zip (names_jp, names_en, types):
 
 fieldnames = row_new
 
-# print(fieldnames)
-
 len_rows = len(rows)
 print(f"There are {len_rows} lines to be inserted")
 
@@ -233,7 +231,8 @@ connection = mysql.connector.connect(
     database=os.environ['DB'])
 print("DB connected")
 
-cursor = connection.cursor()
+# Handle unread result error without buffered=True
+cursor = connection.cursor(buffered=True)
 
 # cursor.execute('DROP TABLE IF EXISTS ' + t_name)
 fields_string = ", ".join(list(map(lambda e: e.split(":")[1] + " " + e.split(":")[2] + " COMMENT \'" + e.split(":")[0] + "\'", fieldnames)))
@@ -243,29 +242,18 @@ cursor.execute(create_query)
 fields_title_string = ", ".join(list(map(lambda e: e.split(":")[1], fieldnames)))
 
 update_string = ", ".join(list(map(lambda e: e + "=ins." + e, names_en)))
-# print(update_string)
 
 query = 'INSERT INTO ' + t_name + '(' + fields_title_string + ') VALUES '+ "(" + '%s, ' * (len(fieldnames) - 1) + '%s' + ")" + " AS ins ON DUPLICATE KEY UPDATE " + update_string                                                         
 
 cursor.executemany(query, rows)
 
 connection.commit()
-connection.close()
 
 #insert into jrctid_hospital_mapping
 
 fieldnames_mapping = ["jrctid:jrctid:VARCHAR(255)", "hospital_id:hospital_id:VARCHAR(255)", "がん種:cancer:VARCHAR(255)"]
 
 t_name_mapping = "jrctid_hospital_mapping"
-
-connection = mysql.connector.connect(
-    user=os.environ['USER'], password=os.environ['PASS'], 
-    host=os.environ['HOST'], port=os.environ['PORT'], 
-    database=os.environ['DB'])
-print("DB connected")
-
-# Handle unread result error without buffered=True
-cursor = connection.cursor(buffered=True)
 
 cursor.execute('DROP TABLE IF EXISTS ' + t_name_mapping)
 fields_string = ", ".join(list(map(lambda e: e.split(":")[1] + " " + e.split(":")[2] + " COMMENT \'" + e.split(":")[0] + "\'", fieldnames_mapping)))
@@ -303,8 +291,6 @@ with open("/root/opt/unknown_hospitals.txt", "w") as output:
 fields_title_string = ", ".join(list(map(lambda e: e.split(":")[1], fieldnames_mapping)))
 
 query = 'INSERT INTO ' + t_name_mapping + '(' + fields_title_string + ') VALUES '+ "(" + '%s, ' * (len(fieldnames_mapping) - 1) + '%s' + ")"                                                         
-
-print(query)
 
 cursor.executemany(query, inserted_hospitals)
 
