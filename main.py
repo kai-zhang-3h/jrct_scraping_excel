@@ -23,8 +23,15 @@ combined_list_pairs = [
         "責任研究者の組織名",
         "*Contact for Scientific Queries 所属機関（実施医療機関）",
         "*Contact for Scientific Queries 会社名・機関名",
+    ),
+    (
+        "他施設の責任研究者の組織名",
         "*研究責任医師の連絡先*実施医療機関*",
-        "*治験責任医師等の連絡先*実施医療機関*"
+        "*治験責任医師等の連絡先*実施医療機関*",
+    ),
+    (
+        "多施設共同研究機関名",
+        "*Affiliation",
     ),
     ("試験のフェーズ", "試験のフェーズ"),
     ("対象疾患名", "対象疾患名"),
@@ -113,7 +120,7 @@ class ScrapingJRCT:
     def find_next_table(self, h2or3_element):
         table = h2or3_element.find_next("table")
         return table
-    
+
     def find_next_tables(self, h2or3_element):
         tables = []
         current_element = h2or3_element.find_next("table")
@@ -123,7 +130,6 @@ class ScrapingJRCT:
             if current_element and current_element.name != "table":
                 break
         return tables
-
 
     def table_to_dict(self, table):
         rows = table.find_all("tr")
@@ -137,12 +143,19 @@ class ScrapingJRCT:
                 parent_label = th_s[0].get_text(strip=True)
                 th = th_s[1]
             elif len(th_s) == 3:
-                parent_label = th_s[0].get_text(strip=True) + " " + th_s[1].get_text(strip=True)
+                parent_label = (
+                    th_s[0].get_text(strip=True) + " " + th_s[1].get_text(strip=True)
+                )
                 th = th_s[2]
             elif len(th_s) == 4:
-                parent_label = th_s[0].get_text(strip=True) + " " + th_s[1].get_text(strip=True) + " " + th_s[2].get_text(strip=True)
+                parent_label = (
+                    th_s[0].get_text(strip=True)
+                    + " "
+                    + th_s[1].get_text(strip=True)
+                    + " "
+                    + th_s[2].get_text(strip=True)
+                )
                 th = th_s[3]
-                
 
             label = th.get_text(strip=True)
             td_s = row.find_all("td")
@@ -240,22 +253,48 @@ def remove_illegal_characters(value):
         return re.sub(r"[\x00-\x09\x0B-\x1F\x7F-\x9F]", "", value)
     return value
 
+
 # 和暦の '令和X年Y月Z日' を西暦の datetime に変換する関数
 def wareki_to_seireki(date_str):
     if "令和" in date_str:
-        year, month, day = date_str.replace("令和", "").replace("年", "-").replace("月", "-").replace("日", "").split("-")
+        year, month, day = (
+            date_str.replace("令和", "")
+            .replace("年", "-")
+            .replace("月", "-")
+            .replace("日", "")
+            .split("-")
+        )
+        if year == "元":
+            year = 1
         year = int(year) + 2018  # 令和元年は2019年
     elif "平成" in date_str:
-        year, month, day = date_str.replace("平成", "").replace("年", "-").replace("月", "-").replace("日", "").split("-")
+        year, month, day = (
+            date_str.replace("平成", "")
+            .replace("年", "-")
+            .replace("月", "-")
+            .replace("日", "")
+            .split("-")
+        )
+        if year == "元":
+            year = 1
         year = int(year) + 1988  # 平成元年は1989年
     elif "昭和" in date_str:
-        year, month, day = date_str.replace("昭和", "").replace("年", "-").replace("月", "-").replace("日", "").split("-")
+        year, month, day = (
+            date_str.replace("昭和", "")
+            .replace("年", "-")
+            .replace("月", "-")
+            .replace("日", "")
+            .split("-")
+        )
+        if year == "元":
+            year = 1
         year = int(year) + 1925  # 昭和元年は1926年
     else:
         raise ValueError(f"Unsupported era in date string: {date_str}")
-    
+
     # 日付をdatetimeオブジェクトに変換して返す
     return datetime(int(year), int(month), int(day))
+
 
 def update(index_list, excel_file_path, json_file_path):
     # JSONファイルを読み込む
@@ -288,8 +327,8 @@ def update(index_list, excel_file_path, json_file_path):
 
     # 追記するシート名を指定（既存のシート名）
     sheet = workbook["Sheet1"]
-    
-    study_status_index = get_index_by_first_element('試験進捗状況', combined_list_pairs)
+
+    study_status_index = get_index_by_first_element("試験進捗状況", combined_list_pairs)
 
     for index in tqdm(index_list):
         url = "https://jrct.niph.go.jp/latest-detail/" + index
@@ -328,9 +367,9 @@ def update(index_list, excel_file_path, json_file_path):
             if column_names[0] == "url":
                 new_row.append(url)
                 continue
-            
-            #ここでは複数とる
-            if column_names[0] == "責任研究者の組織名":
+
+            # ここでは複数とる
+            if column_names[0] == "他施設の責任研究者の組織名":
                 matching_columns = []
                 for column_name in column_names[1:]:
                     add_matching_columns = [
@@ -348,7 +387,7 @@ def update(index_list, excel_file_path, json_file_path):
                         institute_names += data[key] + "\n"
                     new_row.append(institute_names)
                 continue
-                
+
             for column_name in column_names[1:]:
                 matching_columns = [
                     match_column_name
@@ -369,9 +408,11 @@ def update(index_list, excel_file_path, json_file_path):
 
         existing_ids.add(index)
         # 終了の時は追記せずに飛ばす
-        if new_row[study_status_index] == "研究終了" or new_row[study_status_index] == "募集終了":
+        if (
+            new_row[study_status_index] == "研究終了"
+            or new_row[study_status_index] == "募集終了"
+        ):
             continue
-        
 
         # 追記
         sheet.append(new_row)
@@ -387,19 +428,19 @@ def update(index_list, excel_file_path, json_file_path):
     workbook.save(excel_file_path)
     with open(json_file_path, "w") as file:
         json.dump(json_data, file, indent=4, ensure_ascii=False)
-        
-    #最後にexcelファイルを並び替える
+
+    # 最後にexcelファイルを並び替える
     # Excelファイルを読み込み
-    df = pd.read_excel(excel_file_path, sheet_name='Sheet1')
+    df = pd.read_excel(excel_file_path, sheet_name="Sheet1")
 
     # 'Date' 列を和暦から西暦の datetime に変換
-    df['date'] = df['初回公表日'].apply(wareki_to_seireki)
+    df["date"] = df["初回公表日"].apply(wareki_to_seireki)
 
     # 日付の列で並び替え
-    df_sorted = df.sort_values(by='date', ascending=False)
-    
+    df_sorted = df.sort_values(by="date", ascending=False)
+
     # dateの列を削除
-    df_sorted = df_sorted.drop(columns=['date'])
+    df_sorted = df_sorted.drop(columns=["date"])
 
     # 並び替えたデータを新しいファイルに保存
     df_sorted.to_excel(excel_file_path, index=False)
@@ -429,6 +470,7 @@ def get_row_data(data):
             new_row.append(data[key])
     return new_row
 
+
 def get_index_by_first_element(element_name, combined_list_pairs):
     for index, pair in enumerate(combined_list_pairs):
         if pair[0] == element_name:
@@ -443,7 +485,7 @@ def main():
         index_csv_file_path, index_col="臨床研究実施計画番号", encoding="utf-8"
     )
     index_list = index_df.index.tolist()
-    # index_list = ['jRCTs071240054']
+    #index_list = ['jRCT2061240025']
     update(index_list, "jrct_data.xlsx", "jrct_data.json")
 
 

@@ -79,11 +79,13 @@ for row in ws.rows:
         row_raw = list(map(lambda x : x.value, row))
         rows.append(row_raw)
 
+        print(row_raw[6])
+
         # filter cancer records
 
-        if (row_raw[7] == None or row_raw[7] == ""): continue
+        if (row_raw[9] == None or row_raw[9] == ""): continue
 
-        cancer = row_raw[7]
+        cancer = row_raw[9]
 
         flag = False
 
@@ -93,11 +95,10 @@ for row in ws.rows:
 
         if not flag: continue
 
-        # if (row_raw[7] == None or ("癌" not in row_raw[8] and "がん" not in row_raw[7])): continue
-
-        if (row_raw[5] != None and row_raw[5] != ""):
-            jrctid = row_raw[14]
-            hospitals_list = row_raw[5].split('\n')
+        if (row_raw[6] != None and row_raw[6] != ""):
+            print(row_raw[6])
+            jrctid = row_raw[16]
+            hospitals_list = row_raw[6].split('\n')
             for hospital in hospitals_list:
                 if hospital != '':
                     table = str.maketrans({
@@ -107,6 +108,7 @@ for row in ws.rows:
                     other_hospitals.append([jrctid, hospital, cancer])
 
 print(other_hospitals[0:5])
+print(len(names_jp))
 
 def process_date(date):
 
@@ -168,7 +170,8 @@ def process_rows(old_rows):
     for row in old_rows:
 
         # 多施設のデータはこのテーブルに挿入しない
-        row.pop(5)
+        row.pop(7)
+        row.pop(6)
 
         # DATE
         row[0] = process_date(row[0])
@@ -179,9 +182,9 @@ def process_rows(old_rows):
         # ct_filter
         row[4] = process_ct_filter(row[4])
         #ct_progression
-        row[12] = process_ct_progression(row[12])
+        row[14] = process_ct_progression(row[14])
         # ct_type
-        row[17] = process_ct_type(row[17])
+        row[19] = process_ct_type(row[19])
         new_rows.append(row)
 
     return new_rows
@@ -189,7 +192,7 @@ def process_rows(old_rows):
 rows = process_rows(rows)
 
 # ['初回公表日', '最終公表日', '実施期間（終了日）', '研究の種別', '治験の区分', 
-#  '試験のフェーズ', '対象疾患名', '医薬品の一般名称', 
+#  '責任研究者の組織名', '試験のフェーズ', '対象疾患名', '医薬品の一般名称', 
 #  '販売名', '研究資金等の提供組織名称', '依頼者の名称', '他の臨床研究登録期間発行の研究番号', '試験進捗状況',
 #  'JRCT_ID', '研究名称', '組入れ開始日', '試験概要の目標症例数', '試験概要の試験のタイプ', 
 #  '試験問い合わせ窓口のE-mail', '試験問い合わせ窓口の担当者', 'url', '平易な研究名称']
@@ -197,19 +200,22 @@ rows = process_rows(rows)
 # '責任研究者の組織名'は含めていないです
 
 names_en = ['date_public_first', 'date_public_final', 'date_end', 'research_type', 'ct_filter',
-           'ct_phase', 'disease_name', 'medicine_general_name', 
+           'institution_name', 'ct_phase', 'disease_name', 'medicine_general_name', 
            'medicine_brand_name','funding_org', 'dependence_name', 'research_num', 'ct_progression', 
            'jrctid','research_name', 'enrollment_start_date', 'num_target_disease', 'ct_type', 
            'inquiry_window_email', 'inquiry_window_person', 'url', 'research_simple_name']
 
 types = ["DATE", "DATE", "DATE", "TEXT", "VARCHAR(255)",
-         "VARCHAR(255)", "TEXT", "TEXT",
+         "TEXT", "VARCHAR(255)", "TEXT", "TEXT",
          "TEXT", "VARCHAR(255)", "VARCHAR(255)", "VARCHAR(255)", "TEXT",
          "VARCHAR(255)", "TEXT", "VARCHAR(255)", "MEDIUMINT", "TEXT",
          "VARCHAR(255)", "VARCHAR(255)", "VARCHAR(255)", "TEXT"]
 
-# 多施設のデータはこのテーブルに挿入しない
-names_jp.pop(5)
+# 多施設のデータ（６）と英語の名前（７）はこのテーブルに挿入しない
+names_jp.pop(7)
+names_jp.pop(6)
+
+print(len(names_jp))
 
 row_new = []
 
@@ -217,6 +223,8 @@ for a, b, c in zip (names_jp, names_en, types):
     row_new.append(a + ':' + b + ':' + c)
 
 fieldnames = row_new
+
+print(fieldnames)
 
 len_rows = len(rows)
 print(f"There are {len_rows} lines to be inserted")
@@ -244,6 +252,11 @@ fields_title_string = ", ".join(list(map(lambda e: e.split(":")[1], fieldnames))
 update_string = ", ".join(list(map(lambda e: e + "=ins." + e, names_en)))
 
 query = 'INSERT INTO ' + t_name + '(' + fields_title_string + ') VALUES '+ "(" + '%s, ' * (len(fieldnames) - 1) + '%s' + ")" + " AS ins ON DUPLICATE KEY UPDATE " + update_string                                                         
+
+print(query)
+
+print(len(fieldnames))
+print(len(rows[0]))
 
 cursor.executemany(query, rows)
 
