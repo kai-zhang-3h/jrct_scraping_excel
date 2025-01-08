@@ -16,3 +16,8 @@ excelに記録，既存のidの場合はスキップ
 #　どのデータを取っているか
 まず，tabledata.txtのようにデータが得られている．
 あとはここから実際に得たいデータを選んでいる．どのデータを使うかは，main.pyでcombined_listpairsとして定義している．これを変更すれば良い．
+# docker
+よくて使われる命令：
+- docker compose up -d
+- docker exec -it python3 /bin/bash 
+- docker compose down
