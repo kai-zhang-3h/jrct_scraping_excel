@@ -96,7 +96,6 @@ for row in ws.rows:
         if not flag: continue
 
         if (row_raw[6] != None and row_raw[6] != ""):
-            print(row_raw[6])
             jrctid = row_raw[16]
             hospitals_list = row_raw[6].split('\n')
             for hospital in hospitals_list:
@@ -106,9 +105,6 @@ for row in ws.rows:
                                 })
                     hospital = hospital.translate(table)
                     other_hospitals.append([jrctid, hospital, cancer])
-
-print(other_hospitals[0:5])
-print(len(names_jp))
 
 def process_date(date):
 
@@ -215,16 +211,12 @@ types = ["DATE", "DATE", "DATE", "TEXT", "VARCHAR(255)",
 names_jp.pop(7)
 names_jp.pop(6)
 
-print(len(names_jp))
-
 row_new = []
 
 for a, b, c in zip (names_jp, names_en, types):
     row_new.append(a + ':' + b + ':' + c)
 
 fieldnames = row_new
-
-print(fieldnames)
 
 len_rows = len(rows)
 print(f"There are {len_rows} lines to be inserted")
@@ -252,11 +244,6 @@ fields_title_string = ", ".join(list(map(lambda e: e.split(":")[1], fieldnames))
 update_string = ", ".join(list(map(lambda e: e + "=ins." + e, names_en)))
 
 query = 'INSERT INTO ' + t_name + '(' + fields_title_string + ') VALUES '+ "(" + '%s, ' * (len(fieldnames) - 1) + '%s' + ")" + " AS ins ON DUPLICATE KEY UPDATE " + update_string                                                         
-
-print(query)
-
-print(len(fieldnames))
-print(len(rows[0]))
 
 cursor.executemany(query, rows)
 
